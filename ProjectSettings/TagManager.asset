@@ -1,0 +1,65 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!78 &1
+TagManager:
+  serializedVersion: 2
+  tags:
+  - Enemy Bullet
+  - PlayerBullet
+  - LasHerm
+  - LasHermLas
+  - SpearHerm
+  - Walls
+  - Ship Shield
+  layers:
+  - Default
+  - TransparentFX
+  - Ignore Raycast
+  - 
+  - Water
+  - UI
+  - 
+  - 
+  - Player
+  - Enemy
+  - Player Bullets
+  - Enemy Bullets
+  - Wall
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  m_SortingLayers:
+  - name: Default
+    uniqueID: 0
+    locked: 0
+  - name: Background
+    uniqueID: 389218567
+    locked: 0
+  - name: Border Walls
+    uniqueID: 4219833005
+    locked: 0
+  - name: Player
+    uniqueID: 1338097493
+    locked: 0
+  - name: Las Turret
+    uniqueID: 2899151281
+    locked: 0
+  - name: Bullets
+    uniqueID: 16096181
+    locked: 0
