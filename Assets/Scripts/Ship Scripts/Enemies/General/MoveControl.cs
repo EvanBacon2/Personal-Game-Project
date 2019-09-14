@@ -4,7 +4,7 @@ using UnityEngine;
 
 public class MoveControl : MonoBehaviour 
 {
-	//Objects/Lists
+	/** Objects/Lists **/
 	public Transform Target;//object that this object will move towards and follow
 	Rigidbody2D rb2d;
 	private List<Vector2> targetPath = new List<Vector2>();//path towards Target created by pathMaker
@@ -12,10 +12,10 @@ public class MoveControl : MonoBehaviour
 	private DamageControl dmgControl;
 	private List<GameObject> addObjects;//additional objects associated with this object
 
-	//Rotation
+	/** Rotation **/
 	public float rotSpeed;
 
-    //Pathfinding
+    /** Pathfinding **/
     public bool sightClear;
 	public LayerMask sightMask;
 	public LayerMask enemyMask;
@@ -25,8 +25,9 @@ public class MoveControl : MonoBehaviour
 	public float nodeTriggerRadius;
 	private int pathStep;//keeps track of which node in the path this object should be moving towards
 	private Vector2 currentPathNode;
+    private Vector2 lastFramePathNode;
 
-	//Movement
+	/** Movement **/
 	private Vector2 pos;
 	public int moveSpeed;
 	//Mod fields are used to increase the relative strength of a given force
@@ -39,11 +40,18 @@ public class MoveControl : MonoBehaviour
 	public float targetDist;
 	//Radius fields are used to specificy the size of the area in objects are searched for
 	public float helpForceRadius;
+    public float helpDashRadius;
 	public float enemyForceRadius;
 	public float wallForceRadius;
 	public float distPriorityMod;
+    //fields for Dash Frames
+    public bool dashFrame;
+    private float dashEndTimeStamp;
+    private float dashRechargeTimeStamp;
+    private Vector2[] dashList;
+    private int dashTo;//holds the index in dashList that will accessed when snapping
 
-	//Debugging
+	/** Debugging **/
 	public bool showVelocity;
 	public bool showTargetForce;
 	public bool showPathForce;
@@ -60,6 +68,7 @@ public class MoveControl : MonoBehaviour
 		pathMakr = new PathMaker();
 		dmgControl = GetComponent<DamageControl>();
 		addObjects = dmgControl.addObjects;
+        dashList = new Vector2[6];
 	}
 
 	void Update () 
@@ -82,7 +91,7 @@ public class MoveControl : MonoBehaviour
 
 	void FixedUpdate()
 	{
-		pos = this.transform.position;
+		pos = transform.position;
 		sightClear = inLOS();
         if (!sightClear)
         {
@@ -98,11 +107,17 @@ public class MoveControl : MonoBehaviour
         else
             clearPath();
 
-		rb2d.AddForce(createTotalForce().normalized * moveSpeed);
+        setTotalForce();
+		//rb2d.AddForce(createTotalForce().normalized * moveSpeed);
 	}
 
-	//Checks to see if this object is within line of sight of Target
-	public bool inLOS()
+    void LateUpdate()
+    {
+        lastFramePathNode = currentPathNode;
+    }
+
+    //Checks to see if this object is within line of sight of Target
+    public bool inLOS()
 	{
         RaycastHit2D los = Physics2D.Raycast(transform.position, Target.position - transform.position, 
 			                                  Vector2.Distance(transform.position, Target.position), sightMask);
@@ -181,12 +196,11 @@ public class MoveControl : MonoBehaviour
 	}
 
 	//creats the final single vector that will push this object
-	private Vector2 createTotalForce()
+	private void setTotalForce()
 	{
 		Vector2 targetForce = new Vector2();
 		Vector2 pathForce = new Vector2();
-		Vector2 mainForce = new Vector2();
-        Vector2 clearForceDest = new Vector2();
+		Vector2 mainForce = new Vector2();//targetForce when sightClear, pathForce when !sightClear
 
 		if (sightClear)//object well be moving towards their target
 		{
@@ -207,7 +221,23 @@ public class MoveControl : MonoBehaviour
         if (!sightClear)
             totalForce += createHelpForce(mainForce) * helpForceMod;
 
-        return totalForce;
+        if (!dashFrame)
+        {
+            float mod = Mathf.Abs(Vector2.Angle(rb2d.velocity, totalForce)) / 180f * 500;
+            rb2d.AddForce(totalForce.normalized * (moveSpeed + mod));
+        }
+        else
+        {
+            if (dashEndTimeStamp > Time.time && dashRechargeTimeStamp <= Time.time)
+                rb2d.velocity = dashList[0].normalized * moveSpeed;
+            else
+            {
+                dashFrame = false;
+                dashList = new Vector2[6];
+                dashRechargeTimeStamp = Time.time + 1;
+            }
+        }
+
     }
 
 
@@ -232,10 +262,9 @@ public class MoveControl : MonoBehaviour
 	private Vector2 createPathForce()
 	{
 		Vector2 pathForce = new Vector2(currentPathNode.x - transform.position.x, currentPathNode.y - transform.position.y).normalized;
-		if (showPathForce)
-			Debug.DrawLine(pos, pos + (pathForce * 100), Color.blue);
-
-		return pathForce;
+        if (showPathForce)
+            Debug.DrawLine(pos, pos + (pathForce * 100), Color.blue);
+        return pathForce;
 	}
 
 	//Force that will push this object in a direction parallel to the surface of what ever wall its closest to within a certain radius
@@ -243,14 +272,28 @@ public class MoveControl : MonoBehaviour
 	private Vector2 createHelpForce(Vector2 mainForce)
 	{
 		Vector2 helpForce = new Vector2();
-		Collider2D[] helpNeeded = Physics2D.OverlapCircleAll(transform.position, helpForceRadius, wallMask);
 
-		if (helpNeeded.Length > 0) 
-			helpForce = helpMoveFromWall(helpNeeded, mainForce);
-		if (showHelpForce)
-			Debug.DrawLine(pos, pos + (helpForce * 100), Color.green);
+        Collider2D[] helpDashNeeded = Physics2D.OverlapCircleAll(transform.position, helpDashRadius, wallMask);
+        if (helpDashNeeded.Length > 0)
+            helpForce = helpMoveFromWall(helpDashNeeded, mainForce);
+        if (showHelpForce)
+            Debug.DrawLine(pos, pos + (helpForce * 100), Color.green);
 
-		return helpForce;
+        if (helpForce.x != 0 || helpForce.y != 0)
+        {
+            dashFrame = true;
+            dashEndTimeStamp = Time.time + .06f;
+            dashList[0] = helpForce;
+        }
+        else
+        {
+            Collider2D[] helpNeeded = Physics2D.OverlapCircleAll(transform.position, helpForceRadius, wallMask);
+            if (helpNeeded.Length > 0)
+                helpForce = helpMoveFromWall(helpNeeded, mainForce);
+            if (showHelpForce)
+                Debug.DrawLine(pos, pos + (helpForce * 100), Color.green);
+        }
+        return helpForce;
 	}
 
 	//Force that will push this object away from other enemies
@@ -290,18 +333,22 @@ public class MoveControl : MonoBehaviour
 	private Vector2 helpMoveFromWall(Collider2D[] helpNeeded, Vector2 mainForce) 
 	{
 		Vector2 helpForce = new Vector2();
-		Vector2[] helpNormals = new Vector2[helpNeeded.Length];
+		List<Vector2> helpNormals = new List<Vector2>();
 
-		for (int i = 0; i < helpNeeded.Length; i++)
-		{
-			RaycastHit2D normalFinder = Physics2D.Raycast(transform.position, helpNeeded[i].transform.position - transform.position, Mathf.Infinity, wallMask);
-			helpNormals[i] = normalFinder.normal;
+        if ((pos.x > (helpNeeded[0].bounds.min.x + 10) && pos.x < (helpNeeded[0].bounds.max.x - 10)) ||
+                (pos.y > (helpNeeded[0].bounds.min.y + 10) && pos.y < (helpNeeded[0].bounds.max.y - 10)) && helpNeeded.Length != 0)
+        { 
+                RaycastHit2D normalFinder = Physics2D.Raycast(transform.position, helpNeeded[0].transform.position - transform.position, Mathf.Infinity, wallMask);
+                helpNormals.Add(normalFinder.normal);
 		}
 
-		helpForce = helpNormals[0];
-        float helpAng = (Vector2.Angle(new Vector2(1, 0), helpForce) - 90) * Mathf.Deg2Rad;
-        helpForce.x = Mathf.Abs(Mathf.Cos(helpAng)) * mainForce.x;
-        helpForce.y = Mathf.Abs(Mathf.Sin(helpAng)) * mainForce.y;
+        if (helpNormals.Count != 0)
+        {
+            helpForce = helpNormals[0];
+            float helpAng = (Vector2.Angle(new Vector2(1, 0), helpForce) - 90) * Mathf.Deg2Rad;
+            helpForce.x = Mathf.Abs(Mathf.Cos(helpAng)) * mainForce.x;
+            helpForce.y = Mathf.Abs(Mathf.Sin(helpAng)) * mainForce.y;
+        }
         
 		return helpForce.normalized;
 	}
