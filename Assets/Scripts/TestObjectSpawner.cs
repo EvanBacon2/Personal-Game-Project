@@ -3,9 +3,9 @@ using System.Collections.Generic;
 using UnityEngine;
 
 
-//Script which does all the work related to placing all of the path nodes in a scene
+//Script which does all the work related to placing path nodes in a scene
 //To give a basic overview of how nodes are place, first each asteroid object in the scene
-//is given four nodes placed to the N, E, S, an W of it.  After all of these nodes are placed
+//is given eight nodes placed to the N, NE, E, SE, S, etc... of it.  After all of these nodes are placed
 //in what is thier default position the script then begins to check for any possible cases where
 //node deletion/combination/addition might be needed.
 public class TestObjectSpawner : MonoBehaviour 
@@ -17,7 +17,7 @@ public class TestObjectSpawner : MonoBehaviour
 	private Vector2[,] asterNodes;//array of the cordinates for the nodes of each asteroid
 	private Vector2[,] addedAsterNodes;//array of the cordinates for the added nodes of each asteroid
 	public static List<Vector2> nodeList = new List<Vector2>();
-	public static Dictionary<int, bool> nodeLosLog = new Dictionary<int, bool>();//keys are of the form i + j
+	public static Dictionary<int, bool> nodeLosLog = new Dictionary<int, bool>();//keys are of the form i * 10^n + j
 	//where i and j are the indexes of the two nodes in nodeList, values are true when the nodes are in los and false otherwise
 	private bool[,] asterDeletes;//keeps track of which nodes on each asteroid have been deleted
 	private bool[,] asterCombs;//keeps track of which nodes on each asteroid have been combined
@@ -27,13 +27,21 @@ public class TestObjectSpawner : MonoBehaviour
 	private LayerMask wallMask;//contains all objects which act as walls/barriers that block the players movement
 	private LayerMask playerMask;//contains the players ship and any objects associated with it. i.e. its shields
 
+	enum NodeChange
+	{
+		delete,
+		combine,
+		add
+	}
+
 	//Common Parameters
 	//	anchorID: ID of the anchor asteroid
 	//	orbitID: ID of the orbit asteroid
 	//	anchorSide: side of the anchor asteroid that the node of interest lies on
-	//	orbitSide: sid of the orbit asteroids that the nodes of interest lie on
+	//	orbitSide: side of the orbit asteroid that the nodes of interest lie on
 	//	anchorBounds: dimensions of the anchor asteroid's AABB
 	//	orbitBounds: dimensions of the orbit asteroids's AABB
+	//  change: the change to be applied to anchor/orbit's nodes 
 
 	void Start() 
 	{
@@ -56,9 +64,9 @@ public class TestObjectSpawner : MonoBehaviour
 			spawnInitNodes(i);
 		}
 
-		asterSearch(true, false, false);//search for nodes that need deleting
-		asterSearch(false, true, false);//search for nodes that need combining
-		asterSearch(false, false, true);//search for asteroids that need additional nodes
+		asterSearch(NodeChange.delete);//search for nodes that need deleting
+		asterSearch(NodeChange.combine);//search for nodes that need combining
+		asterSearch(NodeChange.add);//search for asteroids that need additional nodes
 		fillNodeLosLog();//does a los check between every node pair in the scene and stores the result in a dictionary
 	}
 
@@ -67,14 +75,14 @@ public class TestObjectSpawner : MonoBehaviour
 	private void spawnInitNodes(int asterID) 
 	{
 		Bounds asterBounds = asteroids[asterID].GetComponent<Collider2D>().bounds;
-		asterNodes[asterID, 0] = new Vector2(asterBounds.center.x, asterBounds.max.y + nodeGap);//North Node
-		addToNodeList(asterNodes[asterID, 0]);
-		asterNodes[asterID, 2] = new Vector2(asterBounds.max.x + nodeGap, asterBounds.center.y);//East Node
-		addToNodeList(asterNodes[asterID, 2]);
-		asterNodes[asterID, 4] = new Vector2(asterBounds.center.x, asterBounds.min.y - nodeGap);//South Node
-		addToNodeList(asterNodes[asterID,4]);
-		asterNodes[asterID, 6] = new Vector2(asterBounds.min.x - nodeGap, asterBounds.center.y);//West Node
-		addToNodeList(asterNodes[asterID,6]);
+		//asterNodes[asterID, 0] = new Vector2(asterBounds.center.x, asterBounds.max.y + nodeGap);//North Node
+		//addToNodeList(asterNodes[asterID, 0]);
+		//asterNodes[asterID, 2] = new Vector2(asterBounds.max.x + nodeGap, asterBounds.center.y);//East Node
+		//addToNodeList(asterNodes[asterID, 2]);
+		//asterNodes[asterID, 4] = new Vector2(asterBounds.center.x, asterBounds.min.y - nodeGap);//South Node
+		//addToNodeList(asterNodes[asterID, 4]);
+		//asterNodes[asterID, 6] = new Vector2(asterBounds.min.x - nodeGap, asterBounds.center.y);//West Node
+		addToNodeList(asterNodes[asterID, 6]);
 		asterNodes[asterID, 1] = new Vector2(asterBounds.max.x + nodeGap, asterBounds.max.y + nodeGap);//North East Node
 		addToNodeList(asterNodes[asterID, 1]);
 		asterNodes[asterID, 3] = new Vector2(asterBounds.max.x + nodeGap, asterBounds.min.y - nodeGap);//South East Node
@@ -174,7 +182,7 @@ public class TestObjectSpawner : MonoBehaviour
 	//delete: true when asterSearch is being called to check for nodes that need to be deleted
 	//combine: true when asterSearch is being called to check for nodes that need to be combined
 	//add: true when asterSearch is being called to check for nodes that need to be added
-	private void asterSearch(bool delete, bool combine, bool add)
+	private void asterSearch(NodeChange change)
 	{
 		//Cardinal vs. Diagonal Asteroids
 		//to check if two asteroids are diagonally alligned the arc tangent of the difference in y position divided
@@ -194,7 +202,7 @@ public class TestObjectSpawner : MonoBehaviour
 		int maxDiagonalAddDist = 319;
 
 		for (int i = 0; i < asterCount - 1; i++)
-		{
+		{//TODO: combine list/ID's into one dictionary
 			List<Bounds>[] deleteList = new List<Bounds>[8];//all the asteroids that are close enough for deletion, organized by their orientation relative to
 															//the anchor asteroid. [0] = North [1] = East etc...
 			List<int>[] deleteIDs = new List<int>[8];//asterID's for asteroids in deleteList
@@ -224,43 +232,43 @@ public class TestObjectSpawner : MonoBehaviour
 				Bounds orbitBounds = asteroids[j].GetComponent<Collider2D>().bounds;
 				float asterDist = Vector2.Distance(anchorBounds.center, orbitBounds.center);
 
-				if (delete && asterDist < diagonalDeleteDist)//criteria for node deletion
+				if (change == NodeChange.delete && asterDist < diagonalDeleteDist)//criteria for node deletion
 				{
-					int orbitSide = addToChangeList(i, j, anchorBounds, orbitBounds, 0, cardinalDeleteDist, deleteList, true, false);
+					int orbitSide = addToChangeList(i, j, anchorBounds, orbitBounds, 0, cardinalDeleteDist, deleteList, change);
 					if (orbitSide != -1)//orbitSide couldn't be found, result of one of the nodes having been previously modified
 						deleteIDs[orbitSide].Add(j);
 				}
-				if (combine && asterDist > cardinalDeleteDist && asterDist < diagonalCombineDist)//criteria for node combination
+				if (change == NodeChange.combine && asterDist > cardinalDeleteDist && asterDist < diagonalCombineDist)//criteria for node combination
 				{
-					int orbitSide = addToChangeList(i, j, anchorBounds, orbitBounds, 0, cardinalCombineDist, combList, false, false);
+					int orbitSide = addToChangeList(i, j, anchorBounds, orbitBounds, 0, cardinalCombineDist, combList, change);
 					if (orbitSide != -1)//orbitSide couldn't be found, result of one of the nodes having been previously modified
 						combIDs[orbitSide].Add(j);
 				}
-				if (add && asterDist >= minCardinalAddDist && asterDist < maxDiagonalAddDist)//criteria for node addition
+				if (change == NodeChange.add && asterDist >= minCardinalAddDist && asterDist < maxDiagonalAddDist)//criteria for node addition
 				{
-					int orbitSide = addToChangeList(i, j, anchorBounds, orbitBounds, minDiagonalAddDist, maxCardinalAddDist, addList, false, true);
+					int orbitSide = addToChangeList(i, j, anchorBounds, orbitBounds, minDiagonalAddDist, maxCardinalAddDist, addList, change);
 					if (orbitSide != -1)//orbitSide couldn't be found, result of one of the nodes having been previously modified
 						addIDs[orbitSide].Add(j);
 				} 
 			}
 				
-			for (int j = 0; j < 8; j++)//for each side of the anchor asteroid check if the anchorNode and corresponding orbitNode should be deleted
+			for (int j = 0; j < 8; j++)//for each side of the anchor asteroid check if the anchorNode and corresponding orbitNodes should be deleted
 			{
 				if (deleteList[j].Count != 0)
 				{
-					if (j % 2 == 0)//node is on a cardinal direction
+					if (j % 2 == 0)//nodes are on a cardinal direction
 						nodeDelete(i, deleteIDs[j], anchorSides[j], j, anchorBounds, deleteList[j]);
-					else//node is on a diagonal direction
+					else//nodes are on a diagonal direction
 						nodeDeleteDiagonal(i, deleteIDs[j], anchorSides[j], j, anchorBounds, deleteList[j]);
 				}
 			}
-			for (int j = 0; j < 8; j++)//for each side of the anchor asteroid check if the anchorNode and corresponding orbitNode should be combined
+			for (int j = 0; j < 8; j++)//for each side of the anchor asteroid check if the anchorNode and corresponding orbitNodes should be combined
 			{
 				if (combList[j].Count != 0)
 				{
-					if (j % 2 == 0)//node is on a cardinal direction
+					if (j % 2 == 0)//nodes are on a cardinal direction
 						nodeCombination(i, combIDs[j], anchorSides[j], j, anchorBounds, combList[j]);
-					else//node is on a diagonal direction
+					else//nodes are on a diagonal direction
 						nodeCombinationDiagonal(i, combIDs[j], anchorSides[j], j, anchorBounds, combList[j]);
 				}
 			}
@@ -278,10 +286,12 @@ public class TestObjectSpawner : MonoBehaviour
 	}
 		
 	//Adds an asteroid to combList so one of its nodes can later be combined with an anchorNode
+	//	minDiagonalDist: the minimum distance that must seperate two diagonally aligned asteroids in order for a node to be added between them
+	//  cardinalChangeDist: the maiximum distance that can seperate the two asteroids in order for their nodes to be changed.
 	//  changeList: contains all of the orbit asteroids that need a specific modification made to their nodes
 	//returns the side of the orbit asteroid that the potential combination node lies on
-	private int addToChangeList(int anchorID, int orbitID, Bounds anchorBounds, Bounds orbitBounds, int minDist, int cardinalChangeDist, 
-								List<Bounds>[] changeList, bool delete, bool addition) 
+	private int addToChangeList(int anchorID, int orbitID, Bounds anchorBounds, Bounds orbitBounds, int minDiagonalDist, int cardinalChangeDist, 
+								List<Bounds>[] changeList, NodeChange change)//TODO: replace delete and addition with enum
 	{
 		float asterDist = Vector2.Distance(orbitBounds.center, anchorBounds.center);
 		float xDiff = orbitBounds.center.x - anchorBounds.center.x;
@@ -290,32 +300,32 @@ public class TestObjectSpawner : MonoBehaviour
 		float targetAngDiff = Mathf.Abs(anchorOrbitAng % 90);
 		int orbitSide = -1;
 
-		if (targetAngDiff > 40 && targetAngDiff <= 50 && asterDist >= minDist)//if angle between the x axis and the line through the center of the anchor 
+		if (targetAngDiff > 40 && targetAngDiff <= 50 && asterDist >= minDiagonalDist)//if angle between the x axis and the line through the center of the anchor 
 		{											 						  //and orbit asteroid is within 5 degrees of 45, 135, 225, or 315 degrees
-			orbitSide = addToChangeListDiagonal(anchorID, orbitID, anchorBounds, orbitBounds, xDiff, yDiff, changeList, delete, addition);
+			orbitSide = addToChangeListDiagonal(anchorID, orbitID, anchorBounds, orbitBounds, xDiff, yDiff, changeList, change);
 			return orbitSide;
 		}
 
-		if (asterDist < cardinalChangeDist)
+		if (asterDist < cardinalChangeDist)//asteroids are within range for change to be performed
 		{
 			if (Mathf.Abs(xDiff) > Mathf.Abs(yDiff))
 			{
-				if (xDiff < 0 && isUnChanged(anchorID, orbitID, 6, 2, anchorBounds, orbitBounds, delete, addition))
+				if (xDiff < 0 && isUnChanged(anchorID, orbitID, 6, 2, anchorBounds, orbitBounds, change))
 				{											 //orbit asteroid is to the West of the anchor asteroid
 					changeList[2].Add(orbitBounds);
 					orbitSide = 2;
-				} else if (xDiff > 0 && isUnChanged(anchorID, orbitID, 2, 6, anchorBounds, orbitBounds, delete, addition))
+				} else if (xDiff > 0 && isUnChanged(anchorID, orbitID, 2, 6, anchorBounds, orbitBounds, change))
 				{                                                   //orbit asteroid is to the East of the anchor asteroid
 					changeList[6].Add(orbitBounds);
 					orbitSide = 6;
 				}
 			} else if (Mathf.Abs(xDiff) < Mathf.Abs(yDiff))
 			{
-				if (yDiff < 0 && isUnChanged(anchorID, orbitID, 4, 0, anchorBounds, orbitBounds, delete, addition))
+				if (yDiff < 0 && isUnChanged(anchorID, orbitID, 4, 0, anchorBounds, orbitBounds, change))
 				{                                           //orbit asteroid is to the South of the anchor asteroid
 					changeList[0].Add(orbitBounds);
 					orbitSide = 0;
-				} else if (yDiff > 0 && isUnChanged(anchorID, orbitID, 0, 4, anchorBounds, orbitBounds, delete, addition))
+				} else if (yDiff > 0 && isUnChanged(anchorID, orbitID, 0, 4, anchorBounds, orbitBounds, change))
 				{                                                  //orbit asteroid is to the North of the anchor asteroid
 					changeList[4].Add(orbitBounds);
 					orbitSide = 4;
@@ -326,15 +336,14 @@ public class TestObjectSpawner : MonoBehaviour
 	}
 
 	//checks if a anchor/orbit pair of nodes has been previously combined or deleted.
-	//  delete: true when asterSearch was called to look for nodes that should be deleted
-	//  addition: true when asterSearch was called to look for places where nodes should be added
+	// change: the change to be applied to anchor/orbit's nodes
 	//returns whether or not both the anchorNode and orbitNode are unChanged
-	private bool isUnChanged(int anchorID, int orbitID, int anchorSide, int orbitSide, Bounds anchorBounds, Bounds orbitBounds, bool delete, bool addition)
-	{
+	private bool isUnChanged(int anchorID, int orbitID, int anchorSide, int orbitSide, Bounds anchorBounds, Bounds orbitBounds, NodeChange change)
+	{//TODO: make an enum to replace delete/addition
 		bool result = true;
-		if (!delete)//if currently performing combination/addition check to see if any of the nodes have already been deleted
+		if (change != NodeChange.delete)//if currently performing combination/addition check to see if any of the nodes have already been deleted
 			result = !asterDeletes[anchorID, anchorSide] && !asterDeletes[orbitID, orbitSide];
-		if (!addition)//if currently performing combination, check to see if any of the nodes hvae already been combined
+		if (change == NodeChange.combine)//if currently performing combination, check to see if any of the nodes have already been combined
 			result = result && !asterCombs[anchorID, anchorSide] && !asterCombs[orbitID, orbitSide];
 		
 		//if currently performing addition, check to see if anchorSide or orbitSide already contains an added node
@@ -346,26 +355,25 @@ public class TestObjectSpawner : MonoBehaviour
 	//	xDiff: difference between the x cords of the anchor and orbit asteroids center
 	//	yDiff: difference between the y cords of the anchor and orbit asteroids center
 	//  changeList: contains all of the orbit asteroids that need a specific modification made to their nodes
-	//  delete: true when asterSearch was called to look for nodes that should be deleted
-	//  addition: true when asterSearch was called to look for places where nodes should be added
+	//  change: the change to be applied to anchor/orbit's nodes
 	//returns the side of the orbit asteroid that the potential combination node lies on
 	private int addToChangeListDiagonal(int anchorID, int orbitID, Bounds anchorBounds, Bounds orbitBounds, float xDiff, float yDiff, 
-										List<Bounds>[] changeList, bool delete, bool addition)
+										List<Bounds>[] changeList, NodeChange change)
 	{
 		int orbitSide = -1;
-		if (xDiff > 0 && yDiff > 0 && isUnchangedDiagonal(anchorID, orbitID, 0, 2, 4, 6, anchorBounds, orbitBounds, delete, addition))
+		if (xDiff > 0 && yDiff > 0 && isUnchangedDiagonal(anchorID, orbitID, 0, 2, 4, 6, anchorBounds, orbitBounds, change))
 		{																		  //orbit asteroid is to the NE of the anchor asteroid
 			changeList[5].Add(orbitBounds);	
 			orbitSide = 5;
-		} else if (xDiff > 0 && yDiff < 0 && isUnchangedDiagonal(anchorID, orbitID, 4, 2, 0, 6, anchorBounds, orbitBounds, delete, addition))
+		} else if (xDiff > 0 && yDiff < 0 && isUnchangedDiagonal(anchorID, orbitID, 4, 2, 0, 6, anchorBounds, orbitBounds, change))
 		{																				 //orbit asteroid is to the SE of the anchor asteroid
 			changeList[7].Add(orbitBounds);
 			orbitSide = 7;
-		} else if (xDiff < 0 && yDiff < 0 && isUnchangedDiagonal(anchorID, orbitID, 4, 6, 0, 2, anchorBounds, orbitBounds, delete, addition))
+		} else if (xDiff < 0 && yDiff < 0 && isUnchangedDiagonal(anchorID, orbitID, 4, 6, 0, 2, anchorBounds, orbitBounds, change))
 		{																				 //orbit asteroid is to the SW of the anchor asteroid
 			changeList[1].Add(orbitBounds);
 			orbitSide = 1;
-		} else if (xDiff < 0 && yDiff > 0 && isUnchangedDiagonal(anchorID, orbitID, 0, 6, 4, 2, anchorBounds, orbitBounds, delete, addition))
+		} else if (xDiff < 0 && yDiff > 0 && isUnchangedDiagonal(anchorID, orbitID, 0, 6, 4, 2, anchorBounds, orbitBounds, change))
 		{                                                                                //orbit asteroid is to the NW of the anchor asteroid
 			changeList[3].Add(orbitBounds);
 			orbitSide = 3;
@@ -377,20 +385,19 @@ public class TestObjectSpawner : MonoBehaviour
 	//eg. if diagonal anchorside is NE then cardinal anchorSides would be N and E, orbitSides would be S and W.
 	//	anchorSide1/2: the two sides of anchor asteroid that are next to the diagonal side being modified
 	//	orbitSide1/2: the two sides of aorbit asteroid that are next to the diagonal side being modified
-	//  delete: true when asterSearch was called to look for nodes that should be deleted
-	//  addition: true when asterSearch was called to look for places where nodes should be added
+	//  change: the change to be applied to anchor/orbit's nodes
 	//returns whether or not all nodes looked at are unchanged
 	private bool isUnchangedDiagonal(int anchorID, int orbitID, int anchorSide1, int anchorSide2, int orbitSide1, int orbitSide2, 
-									 Bounds anchorBounds, Bounds orbitBounds, bool delete, bool addition)
+									 Bounds anchorBounds, Bounds orbitBounds, NodeChange change)
 	{
 		bool result;
 		int anchorDiagonal = (anchorSide1 + anchorSide2) / 2;
 		int orbitDiagonal = (orbitSide1 + orbitSide2) / 2;
 
 		//check to see if a node hasn't already been added to the diagonal side of either asteroid
-		result = isUnChanged(anchorID, orbitID, anchorDiagonal, orbitDiagonal, anchorBounds, orbitBounds, false, true);
+		result = isUnChanged(anchorID, orbitID, anchorDiagonal, orbitDiagonal, anchorBounds, orbitBounds, NodeChange.add);
 
-		if (!delete)//if combining or adding nodes, check to see that none of the nodes next to the diagonals of either asteroid have been deleted
+		if (change != NodeChange.delete)//if combining or adding nodes, check to see that none of the nodes next to the diagonals of either asteroid have been deleted
 			result = result && !asterDeletes[anchorID, anchorSide1] && !asterDeletes[anchorID, anchorSide2] &&
 					 !asterDeletes[orbitID, orbitSide1] && !asterDeletes[orbitID, orbitSide2];
 		return result;

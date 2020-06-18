@@ -221,12 +221,12 @@ public class MoveControl : MonoBehaviour
         if (!sightClear)
             totalForce += createHelpForce(mainForce) * helpForceMod;
 
-        if (!dashFrame)
-        {
+        //if (!dashFrame)
+       // {
             float mod = Mathf.Abs(Vector2.Angle(rb2d.velocity, totalForce)) / 180f * 500;
             rb2d.AddForce(totalForce.normalized * (moveSpeed + mod));
-        }
-        else
+        //}
+        /*else
         {
             if (dashEndTimeStamp > Time.time && dashRechargeTimeStamp <= Time.time)
                 rb2d.velocity = dashList[0].normalized * moveSpeed;
@@ -236,7 +236,7 @@ public class MoveControl : MonoBehaviour
                 dashList = new Vector2[6];
                 dashRechargeTimeStamp = Time.time + 1;
             }
-        }
+        }*/
 
     }
 
@@ -432,8 +432,8 @@ public class MoveControl : MonoBehaviour
             clearForce += new Vector2(Mathf.Cos(destAng + rad90), Mathf.Sin(destAng + rad90));
         if (clearCheckE && !clearCheckW)
             clearForce += new Vector2(Mathf.Cos(destAng - rad90), Mathf.Sin(destAng - rad90));
-        Debug.Log(destAng * Mathf.Rad2Deg);
-        Debug.Log(Mathf.Acos(this2DestDir.x));
+        //Debug.Log(destAng * Mathf.Rad2Deg);
+        //Debug.Log(Mathf.Acos(this2DestDir.x));
 
         return clearForce;
     }

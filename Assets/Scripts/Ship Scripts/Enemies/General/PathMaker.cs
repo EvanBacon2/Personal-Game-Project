@@ -53,8 +53,9 @@ public class PathMaker
 		if (nodeList[nodeList.Count - 1].x == 0)
 		{
 			backwardsPath = true;
-			startNode = nodeList.IndexOf(goalPos);
-			goalNode = nodeList.IndexOf(startPos);
+			int temp = startNode;
+			startNode = goalNode;
+			goalNode = temp;
 		}
 		nodeList.RemoveAt(nodeList.Count - 1);
 
@@ -93,14 +94,14 @@ public class PathMaker
 			//Debug.Log("targetDir " + targetDir);
 			//Debug.Log("targetLosRay " + targetLosRay.point + " " + targetLosRay.transform.tag);
 
-			//check to see if the player is within line of sight of he current node being explored
+			//check to see if the player is within line of sight of the current node being explored
 			if ((!backwardsPath && goalLosRay && goalLosRay.transform.CompareTag(Target.tag)) || (backwardsPath && !goalLosRay))
 			{
 				succList.Add(goalNode);
 				parentNodes[goalNode] = minFNode;
 			}
 				
-			if (minFPos.Equals(nodeList[startNode]))//If at startNode, find the closest node to startNode and if it is in line of sight add it and only it to succList so that 
+			if (minFPos.x == nodeList[startNode].x && minFPos.y == nodeList[startNode].y)//If at startNode, find the closest node to startNode and if it is in line of sight add it and only it to succList so that 
 			{							 //the path will start being formed from that node
 				Vector2 minNodePos = nodeList[minNode];
 				succList.Add(minNode);
@@ -109,7 +110,8 @@ public class PathMaker
 			} else//search through all of the other nodes in the scene, if they are within line of sight, and them to succList
 			{
 				bool inLos = false;//whether or not the two nodes are within line of sight
-				for (int i = 0; i < nodeList.Count - 2; i++)
+				int nodeCount = nodeList.Count;
+				for (int i = 0; i < nodeCount - 2; i++)
 				{
 					if (minFNode < i)
 						inLos = TestObjectSpawner.nodeLosLog[((minFNode + 1) * 1000) + i + 1];
@@ -229,7 +231,8 @@ public class PathMaker
 		float minStartDist = Vector2.Distance(nodeList[minStartNode], nodeList[startNode]);
 		float minGoalDist = Vector2.Distance(nodeList[minGoalNode], nodeList[goalNode]);
 
-		for (int i = 1; i < nodeList.Count - 2; i++)//search for the closest PathNode to startNode and goalNode
+		int nodeCount = nodeList.Count;
+		for (int i = 1; i < nodeCount - 2; i++)//search for the closest PathNode to startNode and goalNode
 		{
 			if (Vector2.Distance(nodeList[i], nodeList[startNode]) < minStartDist)
 			{

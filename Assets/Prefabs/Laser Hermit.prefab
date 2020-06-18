@@ -260,7 +260,7 @@ MonoBehaviour:
     serializedVersion: 2
     m_Bits: 4096
   nodeTriggerRadius: 35
-  moveSpeed: 300
+  moveSpeed: 400
   targetForceMod: 3
   pathForceMod: 1
   helpForceMod: 6
@@ -269,14 +269,16 @@ MonoBehaviour:
   clearForceMod: 2
   targetDist: 40
   helpForceRadius: 40
+  helpDashRadius: 60
   enemyForceRadius: 35
   wallForceRadius: 35
   distPriorityMod: 20
-  showVelocity: 0
-  showTargetForce: 0
-  showPathForce: 0
-  showHelpForce: 0
-  showEnemyForce: 0
-  showWallForce: 0
-  showClearForce: 0
-  showPath: 0
+  dashFrame: 0
+  showVelocity: 1
+  showTargetForce: 1
+  showPathForce: 1
+  showHelpForce: 1
+  showEnemyForce: 1
+  showWallForce: 1
+  showClearForce: 1
+  showPath: 1
